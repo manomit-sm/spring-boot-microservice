@@ -14,9 +14,15 @@ jar {
 	enabled = false
 }
 
+ext {
+	springCloudVersion = "2022.0.1"
+}
+
 repositories {
 	mavenCentral()
 }
+
+
 
 dependencies {
 	implementation project(':api')
@@ -26,6 +32,10 @@ dependencies {
 	implementation 'org.springdoc:springdoc-openapi-starter-common:2.0.2'
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testImplementation 'io.projectreactor:reactor-test'
+
+	implementation 'org.springframework.cloud:spring-cloud-starter-stream-rabbit'
+	implementation 'org.springframework.cloud:spring-cloud-starter-stream-kafka'
+	testImplementation 'org.springframework.cloud:spring-cloud-stream::test-binder'
 }
 
 tasks.named('test') {

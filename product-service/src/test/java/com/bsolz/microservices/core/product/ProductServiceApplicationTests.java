@@ -1,14 +1,20 @@
 package com.bsolz.microservices.core.product;
 
 import com.bsolz.api.core.product.Product;
+import com.bsolz.microservices.core.product.events.Event;
 import com.bsolz.microservices.core.product.persistence.ProductRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.HttpStatus;
 import org.springframework.test.web.reactive.server.WebTestClient;
 
+import java.util.function.Consumer;
+
+import static com.bsolz.microservices.core.product.events.Event.Type.CREATE;
+import static com.bsolz.microservices.core.product.events.Event.Type.DELETE;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.boot.test.context.SpringBootTest.WebEnvironment.RANDOM_PORT;
@@ -24,6 +30,10 @@ class ProductServiceApplicationTests {
 
 	@Autowired
 	private ProductRepository repository;
+
+	@Autowired
+	@Qualifier("messageProcessor")
+	private Consumer<Event<Integer, Product>> messageProcessor;
 
 	@Test
 	void contextLoads() {
@@ -97,7 +107,7 @@ class ProductServiceApplicationTests {
 	void duplicateError() {
 		int productId = 1;
 		postAndVerifyProduct(productId, OK);
-		assertTrue(repository.findByProductId(productId).isPresent());
+		assertTrue(repository.findByProductId(productId).blockOptional().isPresent());
 		postAndVerifyProduct(productId, UNPROCESSABLE_ENTITY)
 				.jsonPath("$.path").isEqualTo("/product")
 				.jsonPath("$.message").isEqualTo("Duplicate key, Product Id: " +
@@ -108,9 +118,9 @@ class ProductServiceApplicationTests {
 	void deleteProduct() {
 		int productId = 1;
 		postAndVerifyProduct(productId, OK);
-		assertTrue(repository.findByProductId(productId).isPresent());
+		assertTrue(repository.findByProductId(productId).blockOptional().isPresent());
 		deleteAndVerifyProduct(productId, OK);
-		assertFalse(repository.findByProductId(productId).isPresent());
+		assertFalse(repository.findByProductId(productId).blockOptional().isPresent());
 		deleteAndVerifyProduct(productId, OK);
 	}
 
@@ -142,5 +152,15 @@ class ProductServiceApplicationTests {
 				.exchange()
 				.expectStatus().isEqualTo(expectedStatus)
 				.expectBody();
+	}
+
+	private void sendCreateProductEvent(int productId) {
+		Product product = new Product(productId, "Name " + productId, productId, "SA");
+		Event<Integer, Product> event = new Event(CREATE, productId, product);
+		messageProcessor.accept(event);
+	}
+	private void sendDeleteProductEvent(int productId) {
+		Event<Integer, Product> event = new Event(DELETE, productId, null);
+		messageProcessor.accept(event);
 	}
 }

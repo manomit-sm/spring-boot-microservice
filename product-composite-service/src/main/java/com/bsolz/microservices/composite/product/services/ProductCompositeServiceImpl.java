@@ -9,6 +9,7 @@ import com.bsolz.util.http.ServiceUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.web.bind.annotation.RestController;
+import reactor.core.publisher.Flux;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -30,14 +31,14 @@ public class ProductCompositeServiceImpl implements ProductCompositeService {
 
     @Override
     public ProductAggregate getProduct(int productId) {
-        Product product = integration.getProduct(productId);
+        Product product = integration.getProduct(productId).block();
         if (product == null) {
             throw new NotFoundException("No product found for productId: " + productId);
         }
 
         List<Recommendation> recommendations = integration.getRecommendation(productId);
 
-        List<Review> reviews = integration.getReviews(productId);
+        Flux<Review> reviews = integration.getReviews(productId);
 
         return createProductAggregate(product, recommendations, reviews, serviceUtil.getServiceAddress());
     }

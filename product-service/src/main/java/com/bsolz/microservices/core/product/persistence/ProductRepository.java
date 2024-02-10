@@ -2,10 +2,13 @@ package com.bsolz.microservices.core.product.persistence;
 
 import org.springframework.data.repository.CrudRepository;
 import org.springframework.data.repository.PagingAndSortingRepository;
+import org.springframework.data.repository.reactive.ReactiveCrudRepository;
+import reactor.core.publisher.Mono;
 
 import java.util.Optional;
 
-public interface ProductRepository extends PagingAndSortingRepository<ProductEntity, String>, CrudRepository<ProductEntity, String> {
+public interface ProductRepository extends ReactiveCrudRepository<ProductEntity, String> {
 
-    Optional<ProductEntity> findByProductId(int productId);
+    // Optional<ProductEntity> findByProductId(int productId);
+    Mono<ProductEntity> findByProductId(int productId);
 }

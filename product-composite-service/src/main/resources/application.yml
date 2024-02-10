@@ -98,6 +98,14 @@ spring:
   config:
     activate:
       on-profile: docker
+  cloud:
+    stream:
+      bindings:
+        products-out-0:
+          producer:
+            partition-key-expression: headers['partitionKey']
+            partition-count: 2
+
 server:
   port: 8080
 

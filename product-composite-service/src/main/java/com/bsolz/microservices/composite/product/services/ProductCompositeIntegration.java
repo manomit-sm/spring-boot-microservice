@@ -8,8 +8,10 @@ import com.bsolz.api.core.review.Review;
 import com.bsolz.api.core.review.ReviewService;
 import com.bsolz.api.exceptions.InvalidInputException;
 import com.bsolz.api.exceptions.NotFoundException;
+import com.bsolz.microservices.composite.product.events.Event;
 import com.bsolz.util.http.HttpErrorInfo;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.mapstruct.ap.internal.util.Message;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -18,12 +20,18 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.reactive.function.client.WebClient;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.logging.Level;
 
+import static com.bsolz.microservices.composite.product.events.Event.Type.CREATE;
+import static java.util.logging.Level.FINE;
 import static org.springframework.http.HttpMethod.GET;
 
 @Service
@@ -36,6 +44,7 @@ public class ProductCompositeIntegration implements ProductService, Recommendati
     private final String productServiceUrl;
     private final String recommendationServiceUrl;
     private final String reviewServiceUrl;
+    private final WebClient webClient;
 
     public ProductCompositeIntegration(
         RestTemplate restTemplate,
@@ -45,26 +54,30 @@ public class ProductCompositeIntegration implements ProductService, Recommendati
         @Value("${app.recommendation-service.host}") String recommendationServiceHost,
         @Value("${app.recommendation-service.port}") int recommendationServicePort,
         @Value("${app.review-service.host}") String reviewServiceHost,
-        @Value("${app.review-service.port}") int reviewServicePort
+        @Value("${app.review-service.port}") int reviewServicePort,
+        WebClient webClient
     ) {
         this.restTemplate = restTemplate;
         this.objectMapper = objectMapper;
-
+        this.webClient = webClient;
         productServiceUrl = "http://" + productServiceHost + ":" + productServicePort + "/product/";
         recommendationServiceUrl = "http://" + recommendationServiceHost + ":" + recommendationServicePort + "/recommendation?productId=";
         reviewServiceUrl = "http://" + reviewServiceHost + ":" + reviewServicePort + "/review?productId=";
     }
 
     @Override
-    public Product getProduct(int productId) {
+    public Mono<Product> getProduct(int productId) {
         try {
             String url = productServiceUrl + productId;
             LOG.debug("Will call getProduct API on URL: {}", url);
 
-            Product product = restTemplate.getForObject(url, Product.class);
-            LOG.debug("Found a product with id: {}", product.productId());
+            // Product product = restTemplate.getForObject(url, Product.class);
+            // LOG.debug("Found a product with id: {}", product.productId());
 
-            return product;
+            // return product;
+            return webClient.get().uri(url).retrieve()
+                    .bodyToMono(Product.class)
+                    .log(LOG.getName(), FINE);
 
         } catch (HttpClientErrorException ex) {
 
@@ -84,14 +97,18 @@ public class ProductCompositeIntegration implements ProductService, Recommendati
     }
 
     @Override
-    public Product createProduct(Product body) {
-        try {
-            return restTemplate.postForObject(
-                    productServiceUrl, body, Product.class
-            );
-        } catch (HttpClientErrorException ex) {
-            throw handleHttpClientException(ex);
-        }
+    public Mono<Product> createProduct(Product body) {
+        return Mono.fromCallable(() -> {
+            sendMessage("products-out-0",
+                    new Event(CREATE, body.productId(), body));
+            return body;
+        }).subscribeOn(publishEventScheduler);
+    }
+    private void sendMessage(String bindingName, Event event) {
+        Message message = MessageBuilder.withPayload(event)
+                .setHeader("partitionKey", event.getKey())
+                .build();
+        streamBridge.send(bindingName, message);
     }
 
     @Override
@@ -123,21 +140,28 @@ public class ProductCompositeIntegration implements ProductService, Recommendati
     }
 
     @Override
-    public List<Review> getReviews(int productId) {
+    public Flux<Review> getReviews(int productId) {
         try {
             String url = reviewServiceUrl + productId;
 
             LOG.debug("Will call getReviews API on URL: {}", url);
-            List<Review> reviews = restTemplate
+            /* List<Review> reviews = restTemplate
                     .exchange(url, GET, null, new ParameterizedTypeReference<List<Review>>() {})
-                    .getBody();
+                    .getBody(); */
 
-            LOG.debug("Found {} reviews for a product with id: {}", reviews.size(), productId);
-            return reviews;
+            return webClient.get()
+                            .uri(url)
+                            .retrieve()
+                                    .bodyToFlux(Review.class)
+                                            .log(LOG.getName(), FINE);
+
+            // LOG.debug("Found {} reviews for a product with id: {}", reviews.size(), productId);
+            // return reviews;
 
         } catch (Exception ex) {
             LOG.warn("Got an exception while requesting reviews, return zero reviews: {}", ex.getMessage());
-            return Collections.emptyList();
+            // return Collections.emptyList();
+            return Flux.empty();
         }
     }
 
