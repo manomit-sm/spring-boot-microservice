@@ -1,0 +1,14 @@
+server:
+  port: 7002
+logging:
+  level:
+    root: INFO
+    com.bsolz:  DEBUG
+
+---
+spring:
+  config:
+    activate:
+      on-profile: docker
+
+server.port: 8080
