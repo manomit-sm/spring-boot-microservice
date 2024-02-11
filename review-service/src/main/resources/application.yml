@@ -2,6 +2,20 @@ server:
   port: 7003
 server.error.include-message: always
 
+app:
+  eureka-username: admin
+  eureka-password: admin
+
+eureka:
+  client:
+    serviceUrl:
+      defaultZone: http://admin:admin@localhost:8761/eureka/
+    initialInstanceInfoReplicationIntervalSeconds: 5
+    registryFetchIntervalSeconds: 5
+    instance:
+      leaseRenewalIntervalInSeconds: 5
+      leaseExpirationDurationInSeconds: 5
+
 logging:
   level:
     root: INFO
@@ -9,6 +23,8 @@ logging:
     org.hibernate.SQL: DEBUG
     org.hibernate.type.descriptor.sql.BasicBinder: TRACE
 spring:
+  application:
+    name: review
   data:
     jpa:
       hibernate:
@@ -19,7 +35,8 @@ spring:
     password: pwd
     hikari:
       initializationFailTimeout: 60000
-
+management.endpoint.health.show-details: "ALWAYS"
+management.endpoints.web.exposure.include: "*"
 ---
 spring:
   config:
