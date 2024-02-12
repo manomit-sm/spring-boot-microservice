@@ -1,10 +1,18 @@
 server:
   port: 7002
 logging:
+  pattern:
+    level: "%5p [${spring.application.name:},%X{traceId:-},%X{spanId:-}]"
   level:
     root: INFO
     com.bsolz:  DEBUG
 
+
+management.endpoint.health.show-details: "ALWAYS"
+management.endpoints.web.exposure.include: "*"
+management.health.circuitbreakers.emabled: true
+management.zipkin.tracing.endpoint: http://zipkin:9411/api/v2/spans
+management.tracing.sampling.probability: 1.0
 ---
 spring:
   config:
